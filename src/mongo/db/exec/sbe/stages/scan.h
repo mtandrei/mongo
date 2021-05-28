@@ -57,7 +57,7 @@ struct ScanCallbacks {
 
 class ScanStage final : public PlanStage {
 public:
-    ScanStage(CollectionUUID collectionUuid,
+    ScanStage(const CollectionPtr& collection,
               boost::optional<value::SlotId> recordSlot,
               boost::optional<value::SlotId> recordIdSlot,
               boost::optional<value::SlotId> snapshotIdSlot,
@@ -87,13 +87,14 @@ public:
 
 protected:
     void doSaveState() override;
-    void doRestoreState() override;
+    void doRestoreState(const RestoreContext& context) override;
     void doDetachFromOperationContext() override;
     void doAttachToOperationContext(OperationContext* opCtx) override;
     void doDetachFromTrialRunTracker() override;
     void doAttachToTrialRunTracker(TrialRunTracker* tracker) override;
 
 private:
+    const CollectionPtr* _coll;
     const CollectionUUID _collUuid;
     const boost::optional<value::SlotId> _recordSlot;
     const boost::optional<value::SlotId> _recordIdSlot;
@@ -110,7 +111,7 @@ private:
     const bool _forward;
 
     NamespaceString _collName;
-    uint64_t _catalogEpoch;
+    uint64_t _catalogEpoch = 0;
 
     // If provided, used during a trial run to accumulate certain execution stats. Once the trial
     // run is complete, this pointer is reset to nullptr.
@@ -133,7 +134,6 @@ private:
     bool _open{false};
 
     std::unique_ptr<SeekableRecordCursor> _cursor;
-    boost::optional<AutoGetCollectionForReadMaybeLockFree> _coll;
     RecordId _key;
     bool _firstGetNext{false};
 
@@ -152,7 +152,7 @@ class ParallelScanStage final : public PlanStage {
     };
 
 public:
-    ParallelScanStage(CollectionUUID collectionUuid,
+    ParallelScanStage(const CollectionPtr& collection,
                       boost::optional<value::SlotId> recordSlot,
                       boost::optional<value::SlotId> recordIdSlot,
                       boost::optional<value::SlotId> snapshotIdSlot,
@@ -166,7 +166,7 @@ public:
                       ScanCallbacks callbacks);
 
     ParallelScanStage(const std::shared_ptr<ParallelState>& state,
-                      CollectionUUID collectionUuid,
+                      const CollectionPtr& collection,
                       boost::optional<value::SlotId> recordSlot,
                       boost::optional<value::SlotId> recordIdSlot,
                       boost::optional<value::SlotId> snapshotIdSlot,
@@ -193,7 +193,7 @@ public:
 
 protected:
     void doSaveState() final;
-    void doRestoreState() final;
+    void doRestoreState(const RestoreContext& context) final;
     void doDetachFromOperationContext() final;
     void doAttachToOperationContext(OperationContext* opCtx) final;
 
@@ -206,6 +206,7 @@ private:
         _currentRange = std::numeric_limits<std::size_t>::max();
     }
 
+    const CollectionPtr* _coll;
     const CollectionUUID _collUuid;
     const boost::optional<value::SlotId> _recordSlot;
     const boost::optional<value::SlotId> _recordIdSlot;
@@ -239,7 +240,6 @@ private:
     bool _open{false};
 
     std::unique_ptr<SeekableRecordCursor> _cursor;
-    boost::optional<AutoGetCollectionForReadMaybeLockFree> _coll;
 };
 }  // namespace sbe
 }  // namespace mongo

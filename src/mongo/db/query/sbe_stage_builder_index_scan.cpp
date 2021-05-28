@@ -365,7 +365,7 @@ generateOptimizedMultiIntervalIndexScan(
         indexSnapshotSlot = slotIdGenerator->generate();
     }
 
-    auto stage = sbe::makeS<sbe::IndexScanStage>(collection->uuid(),
+    auto stage = sbe::makeS<sbe::IndexScanStage>(collection,
                                                  indexName,
                                                  forward,
                                                  recordSlot,
@@ -488,7 +488,7 @@ makeRecursiveBranchForGenericIndexScan(const CollectionPtr& collection,
         std::move(projects),
         planNodeId);
 
-    auto ixscan = sbe::makeS<sbe::IndexScanStage>(collection->uuid(),
+    auto ixscan = sbe::makeS<sbe::IndexScanStage>(collection,
                                                   indexName,
                                                   params.direction == 1,
                                                   resultSlot,
@@ -849,7 +849,7 @@ std::pair<sbe::value::SlotId, std::unique_ptr<sbe::PlanStage>> generateSingleInt
     // Scan the index in the range {'lowKeySlot', 'highKeySlot'} (subject to inclusive or
     // exclusive boundaries), and produce a single field recordIdSlot that can be used to
     // position into the collection.
-    auto stage = sbe::makeS<sbe::IndexScanStage>(collection->uuid(),
+    auto stage = sbe::makeS<sbe::IndexScanStage>(collection,
                                                  indexName,
                                                  forward,
                                                  recordSlot,

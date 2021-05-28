@@ -68,6 +68,7 @@ public:
     std::unique_ptr<PlanStage> parse(OperationContext* opCtx,
                                      StringData defaultDb,
                                      StringData line,
+                                     const CollectionPtr* coll,
                                      PlanYieldPolicy* yieldPolicy = nullptr);
 
     std::pair<boost::optional<value::SlotId>, boost::optional<value::SlotId>> getTopLevelSlots()
@@ -80,6 +81,7 @@ private:
     using SpoolBufferLookupTable = std::map<std::string, SpoolId>;
     peg::parser _parser;
     OperationContext* _opCtx{nullptr};
+    const CollectionPtr* _coll{nullptr};
     PlanYieldPolicy* _yieldPolicy{nullptr};
     std::string _defaultDb;
     SymbolTable _symbolsLookupTable;

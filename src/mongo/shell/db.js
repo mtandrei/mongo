@@ -1872,8 +1872,8 @@ DB.prototype.getSession = function() {
 })(Object.prototype.hasOwnProperty);
 }());
 
-DB.prototype._sbe = function(query) {
-    const res = this.runCommand({sbe: query});
+DB.prototype._sbe = function(query, collName) {
+    const res = this.runCommand({sbe: query, coll: collName});
     if (!res.ok) {
         throw _getErrorWithCode(res, "sbe failed: " + tojson(res));
     }

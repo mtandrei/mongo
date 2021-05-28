@@ -127,7 +127,7 @@ void PlanExecutorSBE::saveState() {
 
 void PlanExecutorSBE::restoreState(const RestoreContext& context) {
     _yieldPolicy->setYieldable(context.collection());
-    _root->restoreState();
+    _root->restoreState(context);
 }
 
 void PlanExecutorSBE::detachFromOperationContext() {

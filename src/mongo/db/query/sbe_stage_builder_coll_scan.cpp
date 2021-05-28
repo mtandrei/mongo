@@ -168,7 +168,7 @@ std::pair<std::unique_ptr<sbe::PlanStage>, PlanStageSlots> generateOptimizedOplo
 
     sbe::ScanCallbacks callbacks(
         lockAcquisitionCallback, {}, {}, makeOpenCallbackIfNeeded(collection, csn));
-    auto stage = sbe::makeS<sbe::ScanStage>(collection->uuid(),
+    auto stage = sbe::makeS<sbe::ScanStage>(collection,
                                             resultSlot,
                                             recordIdSlot,
                                             boost::none /* snapshotIdSlot */,
@@ -247,7 +247,7 @@ std::pair<std::unique_ptr<sbe::PlanStage>, PlanStageSlots> generateOptimizedOplo
         // arguments to the ScanStage are boost::none, as we do not need them.
         sbe::ScanCallbacks branchCallbacks(lockAcquisitionCallback);
         auto minTsBranch = sbe::makeS<sbe::FilterStage<false, true>>(
-            sbe::makeS<sbe::ScanStage>(collection->uuid(),
+            sbe::makeS<sbe::ScanStage>(collection,
                                        boost::none /* resultSlot */,
                                        boost::none /* recordIdSlot */,
                                        boost::none /* snapshotIdSlot */,
@@ -375,7 +375,7 @@ std::pair<std::unique_ptr<sbe::PlanStage>, PlanStageSlots> generateOptimizedOplo
 
             stage = sbe::makeS<sbe::LoopJoinStage>(
                 sbe::makeS<sbe::LimitSkipStage>(std::move(stage), 1, boost::none, csn->nodeId()),
-                sbe::makeS<sbe::ScanStage>(collection->uuid(),
+                sbe::makeS<sbe::ScanStage>(collection,
                                            resultSlot,
                                            recordIdSlot,
                                            boost::none /* snapshotIdSlot */,
@@ -449,7 +449,7 @@ std::pair<std::unique_ptr<sbe::PlanStage>, PlanStageSlots> generateGenericCollSc
 
     sbe::ScanCallbacks callbacks(
         lockAcquisitionCallback, {}, {}, makeOpenCallbackIfNeeded(collection, csn));
-    auto stage = sbe::makeS<sbe::ScanStage>(collection->uuid(),
+    auto stage = sbe::makeS<sbe::ScanStage>(collection,
                                             resultSlot,
                                             recordIdSlot,
                                             boost::none /* snapshotIdSlot */,
@@ -484,7 +484,7 @@ std::pair<std::unique_ptr<sbe::PlanStage>, PlanStageSlots> generateGenericCollSc
         // produce EOF.
         auto seekBranch = sbe::makeS<sbe::LoopJoinStage>(
             std::move(projStage),
-            sbe::makeS<sbe::ScanStage>(collection->uuid(),
+            sbe::makeS<sbe::ScanStage>(collection,
                                        boost::none /* recordSlot */,
                                        boost::none /* recordIdSlot*/,
                                        boost::none /* snapshotIdSlot */,

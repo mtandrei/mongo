@@ -37,6 +37,7 @@
 #include "mongo/db/exec/trial_run_tracker.h"
 #include "mongo/db/operation_context.h"
 #include "mongo/db/query/plan_yield_policy.h"
+#include "mongo/db/query/restore_context.h"
 #include "mongo/util/str.h"
 
 namespace mongo {
@@ -149,14 +150,14 @@ public:
      * collection drop. May throw a WriteConflictException, in which case the caller may choose to
      * retry.
      */
-    void restoreState() {
+    void restoreState(const RestoreContext& context) {
         auto stage = static_cast<T*>(this);
         stage->_commonStats.unyields++;
         for (auto&& child : stage->_children) {
-            child->restoreState();
+            child->restoreState(context);
         }
 
-        stage->doRestoreState();
+        stage->doRestoreState(context);
     }
 };
 
@@ -418,7 +419,7 @@ public:
 protected:
     // Derived classes can optionally override these methods.
     virtual void doSaveState() {}
-    virtual void doRestoreState() {}
+    virtual void doRestoreState(const RestoreContext& context) {}
     virtual void doDetachFromOperationContext() {}
     virtual void doAttachToOperationContext(OperationContext* opCtx) {}
     virtual void doDetachFromTrialRunTracker() {}

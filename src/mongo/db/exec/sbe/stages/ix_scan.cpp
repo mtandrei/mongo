@@ -38,7 +38,7 @@
 #include "mongo/db/index/index_access_method.h"
 
 namespace mongo::sbe {
-IndexScanStage::IndexScanStage(CollectionUUID collUuid,
+IndexScanStage::IndexScanStage(const CollectionPtr& coll,
                                StringData indexName,
                                bool forward,
                                boost::optional<value::SlotId> recordSlot,
@@ -52,7 +52,8 @@ IndexScanStage::IndexScanStage(CollectionUUID collUuid,
                                PlanNodeId nodeId,
                                LockAcquisitionCallback lockAcquisitionCallback)
     : PlanStage(seekKeySlotLow ? "ixseek"_sd : "ixscan"_sd, yieldPolicy, nodeId),
-      _collUuid(collUuid),
+      _coll(&coll),
+      _collUuid(coll->uuid()),
       _indexName(indexName),
       _forward(forward),
       _recordSlot(recordSlot),
@@ -62,6 +63,7 @@ IndexScanStage::IndexScanStage(CollectionUUID collUuid,
       _vars(std::move(vars)),
       _seekKeySlotLow(seekKeySlotLow),
       _seekKeySlotHigh(seekKeySlotHigh),
+      _collName(_coll->get()->ns()),
       _lockAcquisitionCallback(std::move(lockAcquisitionCallback)) {
     // The valid state is when both boundaries, or none is set, or only low key is set.
     invariant((_seekKeySlotLow && _seekKeySlotHigh) || (!_seekKeySlotLow && !_seekKeySlotHigh) ||
@@ -71,7 +73,7 @@ IndexScanStage::IndexScanStage(CollectionUUID collUuid,
 }
 
 std::unique_ptr<PlanStage> IndexScanStage::clone() const {
-    return std::make_unique<IndexScanStage>(_collUuid,
+    return std::make_unique<IndexScanStage>(*_coll,
                                             _indexName,
                                             _forward,
                                             _recordSlot,
@@ -87,6 +89,8 @@ std::unique_ptr<PlanStage> IndexScanStage::clone() const {
 }
 
 void IndexScanStage::prepare(CompileCtx& ctx) {
+    _catalogEpoch = CollectionCatalog::get(_opCtx)->getEpoch();
+
     if (_recordSlot) {
         _recordAccessor = std::make_unique<value::OwnedValueAccessor>();
     }
@@ -114,10 +118,7 @@ void IndexScanStage::prepare(CompileCtx& ctx) {
     }
     _seekKeyLowHolder = std::make_unique<value::OwnedValueAccessor>();
 
-    std::tie(_collName, _catalogEpoch) =
-        acquireCollection(_opCtx, _collUuid, _lockAcquisitionCallback, _coll);
-
-    auto indexCatalog = _coll->getCollection()->getIndexCatalog();
+    auto indexCatalog = _coll->get()->getIndexCatalog();
     auto indexDesc = indexCatalog->findIndexByName(_opCtx, _indexName);
     tassert(4938500,
             str::stream() << "could not find index named '" << _indexName << "' in collection '"
@@ -184,28 +185,25 @@ void IndexScanStage::doSaveState() {
     if (_cursor) {
         _cursor->save();
     }
-
-    _coll.reset();
 }
 
-void IndexScanStage::restoreCollectionAndIndex() {
-    restoreCollection(_opCtx, _collName, _collUuid, _catalogEpoch, _lockAcquisitionCallback, _coll);
+void IndexScanStage::restoreCollectionAndIndex(const RestoreContext& context) {
+    _coll = restoreCollection(_opCtx, _collName, _collUuid, _catalogEpoch, _coll, context);
     auto indexCatalogEntry = _weakIndexCatalogEntry.lock();
     uassert(ErrorCodes::QueryPlanKilled,
             str::stream() << "query plan killed :: index '" << _indexName << "' dropped",
             indexCatalogEntry && !indexCatalogEntry->isDropped());
 }
 
-void IndexScanStage::doRestoreState() {
+void IndexScanStage::doRestoreState(const RestoreContext& context) {
     invariant(_opCtx);
-    invariant(!_coll);
 
     // If this stage is not currently open, then there is nothing to restore.
     if (!_open) {
         return;
     }
 
-    restoreCollectionAndIndex();
+    restoreCollectionAndIndex(context);
 
     if (_cursor) {
         _cursor->restore();
@@ -245,19 +243,12 @@ void IndexScanStage::open(bool reOpen) {
 
     _commonStats.opens++;
     invariant(_opCtx);
-
+    tassert(5071007, "_coll is not held for IndexScanStage", _coll);
     if (_open) {
         tassert(5071006, "reopened IndexScanStage but reOpen=false", reOpen);
-        tassert(5071007, "IndexScanStage is open but _coll is not held", _coll);
         tassert(5071008, "IndexScanStage is open but don't have _cursor", _cursor);
     } else {
         tassert(5071009, "first open to IndexScanStage but reOpen=true", !reOpen);
-        if (!_coll) {
-            // We're being opened after 'close()'. We need to re-acquire '_coll' in this case and
-            // make some validity checks (the collection has not been dropped, renamed, etc.).
-            tassert(5071010, "IndexScanStage is not open but have _cursor", !_cursor);
-            restoreCollectionAndIndex();
-        }
     }
 
     _open = true;
@@ -398,7 +389,6 @@ void IndexScanStage::close() {
     trackClose();
 
     _cursor.reset();
-    _coll.reset();
     _open = false;
 }
 

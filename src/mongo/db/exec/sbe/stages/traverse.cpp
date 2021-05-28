@@ -286,7 +286,7 @@ void TraverseStage::doSaveState() {
     _outFieldOutputAccessor.makeOwned();
 }
 
-void TraverseStage::doRestoreState() {
+void TraverseStage::doRestoreState(const RestoreContext& context) {
     if (!slotsAccessible()) {
         return;
     }

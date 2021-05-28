@@ -668,7 +668,7 @@ void Parser::walkScan(AstQuery& ast) {
               "oplogTs"_sd, value::TypeTags::Nothing, 0, false, &_slotIdGenerator))
         : boost::none;
 
-    ast.stage = makeS<ScanStage>(getCollectionUuid(collName),
+    ast.stage = makeS<ScanStage>(*_coll,
                                  lookupSlot(recordName),
                                  lookupSlot(recordIdName),
                                  lookupSlot(snapshotIdName),
@@ -722,7 +722,7 @@ void Parser::walkParallelScan(AstQuery& ast) {
         uasserted(5290716, "Wrong number of arguments for PSCAN");
     }
 
-    ast.stage = makeS<ParallelScanStage>(getCollectionUuid(collName),
+    ast.stage = makeS<ParallelScanStage>(*_coll,
                                          lookupSlot(recordName),
                                          lookupSlot(recordIdName),
                                          lookupSlot(snapshotIdName),
@@ -782,7 +782,7 @@ void Parser::walkSeek(AstQuery& ast) {
               "oplogTs"_sd, value::TypeTags::Nothing, 0, false, &_slotIdGenerator))
         : boost::none;
 
-    ast.stage = makeS<ScanStage>(getCollectionUuid(collName),
+    ast.stage = makeS<ScanStage>(*_coll,
                                  lookupSlot(recordName),
                                  lookupSlot(recordIdName),
                                  lookupSlot(snapshotIdName),
@@ -845,7 +845,7 @@ void Parser::walkIndexScan(AstQuery& ast) {
     auto [indexKeysInclusion, vars] =
         lookupIndexKeyRenames(ast.nodes[projectsPos]->renames, ast.nodes[projectsPos]->indexKeys);
 
-    ast.stage = makeS<IndexScanStage>(getCollectionUuid(collName),
+    ast.stage = makeS<IndexScanStage>(*_coll,
                                       indexName,
                                       forward,
                                       lookupSlot(recordName),
@@ -906,7 +906,7 @@ void Parser::walkIndexSeek(AstQuery& ast) {
     auto [indexKeysInclusion, vars] =
         lookupIndexKeyRenames(ast.nodes[projectsPos]->renames, ast.nodes[projectsPos]->indexKeys);
 
-    ast.stage = makeS<IndexScanStage>(getCollectionUuid(collName),
+    ast.stage = makeS<IndexScanStage>(*_coll,
                                       indexName,
                                       forward,
                                       lookupSlot(recordName),
@@ -1850,11 +1850,13 @@ Parser::Parser(RuntimeEnvironment* env) : _env(env) {
 std::unique_ptr<PlanStage> Parser::parse(OperationContext* opCtx,
                                          StringData defaultDb,
                                          StringData line,
+                                         const CollectionPtr* coll,
                                          PlanYieldPolicy* yieldPolicy) {
     std::shared_ptr<AstQuery> ast;
 
     _opCtx = opCtx;
     _yieldPolicy = yieldPolicy;
+    _coll = coll;
     _defaultDb = defaultDb.toString();
 
     auto result = _parser.parse_n(line.rawData(), line.size(), ast);

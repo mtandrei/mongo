@@ -60,7 +60,7 @@ namespace mongo::sbe {
  */
 class IndexScanStage final : public PlanStage {
 public:
-    IndexScanStage(CollectionUUID collUuid,
+    IndexScanStage(const CollectionPtr& coll,
                    StringData indexName,
                    bool forward,
                    boost::optional<value::SlotId> recordSlot,
@@ -88,7 +88,7 @@ public:
 
 protected:
     void doSaveState() override;
-    void doRestoreState() override;
+    void doRestoreState(const RestoreContext& context) override;
     void doDetachFromOperationContext() override;
     void doAttachToOperationContext(OperationContext* opCtx) override;
     void doDetachFromTrialRunTracker() override;
@@ -100,11 +100,12 @@ private:
      * that the index (and the index's collection) remain valid. If any validity check fails, throws
      * a UserException that terminates execution of the query.
      */
-    void restoreCollectionAndIndex();
+    void restoreCollectionAndIndex(const RestoreContext& context);
 
     const KeyString::Value& getSeekKeyLow() const;
     const KeyString::Value* getSeekKeyHigh() const;
 
+    const CollectionPtr* _coll;
     const CollectionUUID _collUuid;
     const std::string _indexName;
     const bool _forward;
@@ -117,7 +118,7 @@ private:
     const boost::optional<value::SlotId> _seekKeySlotHigh;
 
     NamespaceString _collName;
-    uint64_t _catalogEpoch;
+    uint64_t _catalogEpoch = 0;
 
     LockAcquisitionCallback _lockAcquisitionCallback;
 
@@ -139,7 +140,6 @@ private:
     std::unique_ptr<SortedDataInterface::Cursor> _cursor;
     std::weak_ptr<const IndexCatalogEntry> _weakIndexCatalogEntry;
     boost::optional<Ordering> _ordering{boost::none};
-    boost::optional<AutoGetCollectionForReadMaybeLockFree> _coll;
     boost::optional<KeyStringEntry> _nextRecord;
 
     // This buffer stores values that are projected out of the index entry. Values in the

@@ -35,59 +35,54 @@
 
 namespace mongo::sbe {
 
-std::pair<NamespaceString, uint64_t> acquireCollection(
-    OperationContext* opCtx,
-    CollectionUUID collUuid,
-    const LockAcquisitionCallback& lockAcquisitionCallback,
-    boost::optional<AutoGetCollectionForReadMaybeLockFree>& coll) {
-    tassert(5071012, "cannot restore 'coll' if already held", !coll.has_value());
-    // The caller is expected to hold the appropriate db_raii object to give us a consistent view of
-    // the catalog, so the UUID must still exist.
-    auto collName = CollectionCatalog::get(opCtx)->lookupNSSByUUID(opCtx, collUuid);
-    tassert(5071000,
-            str::stream() << "Collection uuid " << collUuid << " does not exist",
-            collName.has_value());
+// TODO Refactor this so it's shared between the two engines...
+const CollectionPtr* restoreCollection(OperationContext* opCtx,
+                                       const NamespaceString& collName,
+                                       CollectionUUID collUuid,
+                                       uint64_t catalogEpoch,
+                                       const CollectionPtr* oldCollPtr,
+                                       const RestoreContext& context) {
+    auto ptr = oldCollPtr;
+    if (context.type() == RestoreContext::RestoreType::kExternal) {
+        // RequiresCollectionStage requires a collection to be provided in restore. However, it may
+        // be null in case the collection got dropped or renamed.
+        ptr = context.collection();
+        invariant(ptr);
 
-    coll.emplace(opCtx, NamespaceStringOrUUID{collName->db().toString(), collUuid});
-    if (lockAcquisitionCallback) {
-        lockAcquisitionCallback(opCtx, *coll);
+        // If we restore externally and get a null Collection we need to figure out if this was a
+        // drop or rename. The external lookup could have been done for UUID or namespace.
+        const auto& coll = *ptr;
+
+        // If collection exists uuid does not match assume lookup was over namespace and treat this
+        // as a drop.
+        if (coll && coll->uuid() != collUuid) {
+            PlanYieldPolicy::throwCollectionDroppedError(collUuid);
+        }
+
+        // If we didn't get a valid collection but can still find the UUID in the catalog then we
+        // treat this as a rename.
+        if (!coll) {
+            auto catalog = CollectionCatalog::get(opCtx);
+            auto newNss = catalog->lookupNSSByUUID(opCtx, collUuid);
+            if (newNss && *newNss != collName) {
+                PlanYieldPolicy::throwCollectionRenamedError(collName, *newNss, collUuid);
+            }
+        }
     }
 
-    tassert(4938501,
-            str::stream() << "expected CollectionPtr for: " << *collName,
-            static_cast<bool>(coll->getCollection()));
-
-    return {*collName, CollectionCatalog::get(opCtx)->getEpoch()};
-}
-
-void restoreCollection(OperationContext* opCtx,
-                       const NamespaceString& collName,
-                       CollectionUUID collUuid,
-                       uint64_t catalogEpoch,
-                       const LockAcquisitionCallback& lockAcquisitionCallback,
-                       boost::optional<AutoGetCollectionForReadMaybeLockFree>& coll) {
-    tassert(5071011, "cannot restore 'coll' if already held", !coll.has_value());
-    // Reaquire the AutoGet object, looking up in the catalog by UUID. If the collection has been
-    // dropped, then this UUID lookup will fail, throwing an exception and terminating the query.
-    NamespaceStringOrUUID nssOrUuid{collName.db().toString(), collUuid};
-    try {
-        coll.emplace(opCtx, nssOrUuid);
-    } catch (ExceptionFor<ErrorCodes::NamespaceNotFound>& ex) {
-        ex.addContext(str::stream() << "collection dropped: '" << collName << "'");
-        throw;
+    const auto& coll = *ptr;
+    if (!coll) {
+        PlanYieldPolicy::throwCollectionDroppedError(collUuid);
     }
 
-    if (collName != coll->getNss()) {
-        PlanYieldPolicy::throwCollectionRenamedError(collName, coll->getNss(), collUuid);
+    if (collName != coll->ns()) {
+        PlanYieldPolicy::throwCollectionRenamedError(collName, coll->ns(), collUuid);
     }
 
     uassert(ErrorCodes::QueryPlanKilled,
             "the catalog was closed and reopened",
             CollectionCatalog::get(opCtx)->getEpoch() == catalogEpoch);
-
-    if (lockAcquisitionCallback) {
-        lockAcquisitionCallback(opCtx, *coll);
-    }
+    return ptr;
 }
 
 }  // namespace mongo::sbe

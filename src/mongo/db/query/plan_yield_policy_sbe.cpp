@@ -38,9 +38,9 @@ void PlanYieldPolicySBE::saveState(OperationContext* opCtx) {
     }
 }
 
-void PlanYieldPolicySBE::restoreState(OperationContext* opCtx, const Yieldable*) {
+void PlanYieldPolicySBE::restoreState(OperationContext* opCtx, const Yieldable* yieldable) {
     for (auto&& root : _yieldingPlans) {
-        root->restoreState();
+        root->restoreState({RestoreContext::RestoreType::kYield, nullptr});
     }
 }
 }  // namespace mongo

@@ -46,7 +46,7 @@ namespace mongo {
 /**
  * A command for manually constructing a SBE query tree and running it.
  *
- * db.runCommand({sbe: "sbe query text"})
+ * db.runCommand({sbe: "sbe query text", coll: 'collname'})
  *
  * The command is enabled only for testing.
  */
@@ -71,7 +71,8 @@ public:
         uassertStatusOK(CursorRequest::parseCommandCursorOptions(
             cmdObj, query_request_helper::kDefaultBatchSize, &batchSize));
 
-        NamespaceString nss{dbname};
+        const auto collName = cmdObj["coll"].String();
+        NamespaceString nss{dbname, collName};
 
         auto yieldPolicy = std::make_unique<PlanYieldPolicySBE>(
             PlanYieldPolicy::YieldPolicy::YIELD_AUTO,
@@ -81,14 +82,15 @@ public:
             nullptr,
             std::make_unique<YieldPolicyCallbacksImpl>(nss));
 
+        AutoGetCollectionForReadMaybeLockFree lock(opCtx, nss);
         auto env = std::make_unique<sbe::RuntimeEnvironment>();
         sbe::Parser parser(env.get());
-        auto root = parser.parse(opCtx, dbname, cmdObj["sbe"].String(), yieldPolicy.get());
+        auto root = parser.parse(
+            opCtx, dbname, cmdObj["sbe"].String(), &lock.getCollection(), yieldPolicy.get());
         auto [resultSlot, recordIdSlot] = parser.getTopLevelSlots();
 
         std::unique_ptr<PlanExecutor, PlanExecutor::Deleter> exec;
         BSONArrayBuilder firstBatch;
-
 
         // Create a trivial cannonical query for the 'sbe' command execution.
         auto statusWithCQ =
@@ -109,7 +111,7 @@ public:
                                                            std::move(cq),
                                                            nullptr,
                                                            {std::move(root), std::move(data)},
-                                                           &CollectionPtr::null,
+                                                           &lock.getCollection(),
                                                            false, /* returnOwnedBson */
                                                            nss,
                                                            std::move(yieldPolicy)));

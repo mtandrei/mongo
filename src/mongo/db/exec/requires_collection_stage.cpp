@@ -69,7 +69,6 @@ void RequiresCollectionStage::doRestoreState(const RestoreContext& context) {
     }
 
     const auto& coll = *_collection;
-
     if (!coll) {
         PlanYieldPolicy::throwCollectionDroppedError(_collectionUUID);
     }

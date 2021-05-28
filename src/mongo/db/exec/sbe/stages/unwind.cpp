@@ -213,7 +213,7 @@ void UnwindStage::doSaveState() {
     }
 }
 
-void UnwindStage::doRestoreState() {
+void UnwindStage::doRestoreState(const RestoreContext& context) {
     if (!slotsAccessible()) {
         return;
     }

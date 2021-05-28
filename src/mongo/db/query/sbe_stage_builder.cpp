@@ -709,7 +709,7 @@ SlotBasedStageBuilder::makeLoopJoinForFetch(std::unique_ptr<sbe::PlanStage> inpu
         indexKeyCorruptionCheckCallback,
         std::bind(indexKeyConsistencyCheckCallback, _1, std::move(iamMap), _2, _3, _4, _5));
     // Scan the collection in the range [seekKeySlot, Inf).
-    auto scanStage = sbe::makeS<sbe::ScanStage>(_collection->uuid(),
+    auto scanStage = sbe::makeS<sbe::ScanStage>(_collection,
                                                 resultSlot,
                                                 recordIdSlot,
                                                 snapshotIdSlot,

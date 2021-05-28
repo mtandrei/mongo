@@ -55,7 +55,7 @@ public:
 
 protected:
     void doSaveState() final;
-    void doRestoreState() final;
+    void doRestoreState(const RestoreContext& context) final;
 
 private:
     const value::SlotId _inField;

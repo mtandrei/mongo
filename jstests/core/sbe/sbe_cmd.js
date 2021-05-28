@@ -17,7 +17,8 @@ if (!isSBEEnabled) {
     return;
 }
 
-const coll = db.jstests_sbe_cmd;
+const collName = jsTestName();
+const coll = db[collName];
 coll.drop();
 
 // Helper that executes a given 'query', gets the generated 'slotBasedPlan' from explain output,
@@ -31,7 +32,7 @@ function assertSbeCommandWorked({query, projection = {}} = {}) {
     const slotBasedPlan = expl.queryPlanner.winningPlan.slotBasedPlan.stages;
 
     // Verify that the sbe command works and that the SBE plan string is parsed successfully.
-    assert(db._sbe(slotBasedPlan));
+    assert(db._sbe(slotBasedPlan, collName));
 }
 
 assert.commandWorked(coll.insertMany([
